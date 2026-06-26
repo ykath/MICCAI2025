@@ -1,0 +1,24 @@
+# Downloaded paper files
+pdfs/
+
+# Cached source pages and generated runtime folders
+cache/
+__pycache__/
+.pytest_cache/
+
+# Runtime logs
+*.log
+*.err.log
+
+# SQLite runtime sidecar files; keep data/miccai2025.sqlite itself tracked
+data/*.sqlite-shm
+data/*.sqlite-wal
+data/*.sqlite-journal
+
+# Partial downloads and local temp files
+*.part
+*.tmp
+*.temp
+~$*
+Thumbs.db
+.DS_Store

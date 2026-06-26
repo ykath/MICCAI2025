@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MICCAI 2025 Paper Browser</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1f2933;
+      --muted: #667085;
+      --line: #d7dee8;
+      --panel: #ffffff;
+      --soft: #f4f7fb;
+      --accent: #0f766e;
+      --accent-2: #b42318;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: var(--soft);
+      color: var(--ink);
+    }
+    header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      align-items: end;
+      padding: 20px 24px 14px;
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+    }
+    h1 { margin: 0; font-size: 24px; line-height: 1.2; }
+    .sub { color: var(--muted); margin-top: 5px; font-size: 13px; }
+    .tabs { display: flex; gap: 8px; }
+    button, select, input {
+      font: inherit;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      min-height: 36px;
+    }
+    button { padding: 0 12px; cursor: pointer; }
+    button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    main { display: grid; grid-template-columns: minmax(420px, 48%) 1fr; height: calc(100vh - 76px); }
+    aside { border-right: 1px solid var(--line); overflow: hidden; display: flex; flex-direction: column; }
+    .filters {
+      display: grid;
+      grid-template-columns: 1fr 160px 140px;
+      gap: 8px;
+      padding: 12px;
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+    }
+    input, select { padding: 0 10px; width: 100%; }
+    .results { overflow: auto; padding: 10px; }
+    .pager {
+      display: grid;
+      grid-template-columns: 108px 36px minmax(0, 1fr) 36px;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .pager button {
+      min-width: 36px;
+      width: 36px;
+      padding: 0;
+      font-size: 18px;
+      line-height: 1;
+    }
+    .pager button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .pager select {
+      min-height: 32px;
+      height: 32px;
+      padding: 0 8px;
+      font-size: 12px;
+    }
+    .page-numbers {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .page-numbers button {
+      min-width: 30px;
+      width: 30px;
+      min-height: 30px;
+      height: 30px;
+      font-size: 12px;
+    }
+    .page-numbers button.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .page-numbers span {
+      min-width: 16px;
+      text-align: center;
+      color: var(--muted);
+    }
+    .paper {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 10px;
+      cursor: pointer;
+    }
+    .paper.active { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+    .paper h2 { font-size: 15px; margin: 0 0 8px; line-height: 1.35; }
+    .meta { font-size: 12px; color: var(--muted); line-height: 1.45; }
+    .abstract { margin-top: 8px; font-size: 13px; line-height: 1.5; color: #344054; }
+    .detail { overflow: auto; padding: 16px 18px; }
+    .detail h2 { font-size: 21px; margin: 0 0 8px; line-height: 1.25; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+    a.button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 34px;
+      padding: 0 10px;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      color: var(--ink);
+      text-decoration: none;
+      background: #fff;
+      font-size: 13px;
+    }
+    .section { margin-top: 16px; }
+    .section h3 { margin: 0 0 8px; font-size: 15px; }
+    .section p { line-height: 1.6; margin: 0; }
+    .bilingual {
+      display: grid;
+      gap: 10px;
+    }
+    .translation {
+      padding: 10px 12px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    .translation h4 {
+      margin: 0 0 6px;
+      font-size: 13px;
+      color: var(--accent);
+    }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { border: 1px solid var(--line); border-radius: 999px; padding: 4px 8px; font-size: 12px; background: #fff; }
+    iframe { width: 100%; height: 72vh; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+    .stats { display: none; grid-column: 1 / -1; overflow: auto; padding: 18px 24px; }
+    .stats.visible { display: block; }
+    .browser.hidden { display: none; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap: 12px; }
+    .card { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+    .bar { height: 10px; background: #d9eee9; border-radius: 8px; overflow: hidden; margin-top: 5px; }
+    .bar span { display: block; height: 100%; background: var(--accent); }
+    @media (max-width: 900px) {
+      header { grid-template-columns: 1fr; }
+      main { grid-template-columns: 1fr; height: auto; }
+      aside { min-height: 48vh; border-right: 0; border-bottom: 1px solid var(--line); }
+      .filters { grid-template-columns: 1fr; }
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>MICCAI 2025 Paper Browser</h1>
+      <div class="sub" id="status">Loading database...</div>
+    </div>
+    <div class="tabs">
+      <button id="browseTab" class="active">浏览</button>
+      <button id="statsTab">分析</button>
+    </div>
+  </header>
+  <main id="browser" class="browser">
+    <aside>
+      <div class="filters">
+        <input id="query" placeholder="搜索标题、作者、摘要、分类">
+        <select id="category"><option value="">全部分类</option></select>
+        <select id="volume"><option value="">全部卷</option></select>
+      </div>
+      <div class="pager">
+        <select id="pageSize" title="每页数量" aria-label="每页数量">
+          <option value="50">50 条/页</option>
+          <option value="100" selected>100 条/页</option>
+          <option value="150">150 条/页</option>
+        </select>
+        <button id="prevPage" title="上一页" aria-label="上一页">‹</button>
+        <div id="pageNumbers" class="page-numbers" aria-label="页码"></div>
+        <button id="nextPage" title="下一页" aria-label="下一页">›</button>
+      </div>
+      <div id="results" class="results"></div>
+    </aside>
+    <section id="detail" class="detail"></section>
+  </main>
+  <section id="stats" class="stats"></section>
+  <script>
+    const state = { rows: [], selected: null, facets: null, total: 0, offset: 0, pageSize: 100 };
+    const $ = id => document.getElementById(id);
+    const parseJson = text => { try { return JSON.parse(text || "[]"); } catch { return []; } };
+    const clip = (text, n) => text && text.length > n ? `${text.slice(0, n)}...` : (text || "");
+
+    async function api(path) {
+      const response = await fetch(path);
+      if (!response.ok) throw new Error(await response.text());
+      return response.json();
+    }
+
+    async function loadFacets() {
+      state.facets = await api("/api/facets");
+      $("category").innerHTML = '<option value="">全部分类</option>' + state.facets.categories.map(c => `<option>${c.name}</option>`).join("");
+      $("volume").innerHTML = '<option value="">全部卷</option>' + state.facets.volumes.map(v => `<option>${v.volume}</option>`).join("");
+    }
+
+    async function search(resetPage = false) {
+      if (resetPage) state.offset = 0;
+      const params = new URLSearchParams({
+        q: $("query").value,
+        category: $("category").value,
+        volume: $("volume").value,
+        limit: String(state.pageSize),
+        offset: String(state.offset)
+      });
+      const data = await api(`/api/papers?${params}`);
+      state.rows = data.rows;
+      state.total = data.total;
+      const start = data.rows.length ? state.offset + 1 : 0;
+      const end = state.offset + data.rows.length;
+      $("status").textContent = `共 ${data.total} 篇，当前显示 ${start}-${end} 篇`;
+      renderPagination();
+      renderResults();
+      if (data.rows.length) selectPaper(data.rows[0].paper_id);
+    }
+
+    function renderPagination() {
+      const page = Math.floor(state.offset / state.pageSize) + 1;
+      const pages = Math.max(1, Math.ceil(state.total / state.pageSize));
+      $("prevPage").disabled = state.offset <= 0;
+      $("nextPage").disabled = state.offset + state.pageSize >= state.total;
+      $("pageNumbers").innerHTML = paginationItems(page, pages).map(item => {
+        if (item === "...") return `<span>...</span>`;
+        return `<button class="${item === page ? "active" : ""}" onclick="gotoPageNumber(${item})">${item}</button>`;
+      }).join("");
+    }
+
+    function paginationItems(page, pages) {
+      if (pages <= 7) return Array.from({ length: pages }, (_, index) => index + 1);
+      const items = new Set([1, pages, page - 1, page, page + 1]);
+      if (page <= 4) [2, 3, 4, 5].forEach(value => items.add(value));
+      if (page >= pages - 3) [pages - 4, pages - 3, pages - 2, pages - 1].forEach(value => items.add(value));
+      const sorted = [...items].filter(value => value >= 1 && value <= pages).sort((a, b) => a - b);
+      const output = [];
+      for (const value of sorted) {
+        if (output.length && value - output[output.length - 1] > 1) output.push("...");
+        output.push(value);
+      }
+      return output;
+    }
+
+    function gotoPage(direction) {
+      const nextOffset = state.offset + direction * state.pageSize;
+      state.offset = Math.max(0, Math.min(nextOffset, Math.max(0, state.total - 1)));
+      state.offset = Math.floor(state.offset / state.pageSize) * state.pageSize;
+      search(false);
+    }
+
+    function gotoPageNumber(page) {
+      state.offset = (page - 1) * state.pageSize;
+      search(false);
+    }
+
+    function renderResults() {
+      $("results").innerHTML = state.rows.map(row => `
+        <article class="paper ${state.selected === row.paper_id ? "active" : ""}" onclick="selectPaper('${row.paper_id}')">
+          <h2>${row.ordinal}. ${row.title}</h2>
+          <div class="meta">${row.authors_text}</div>
+          <div class="meta">${row.volume || ""} ${row.pages || ""} ${row.downloaded ? " | PDF 已下载" : ""}</div>
+          <div class="abstract">${clip(row.abstract_zh || row.abstract, 260)}</div>
+        </article>
+      `).join("");
+    }
+
+    async function selectPaper(paperId) {
+      state.selected = paperId;
+      renderResults();
+      const row = await api(`/api/paper?paper_id=${encodeURIComponent(paperId)}`);
+      const categories = parseJson(row.categories);
+      const codeUrls = parseJson(row.code_urls);
+      const datasetUrls = parseJson(row.dataset_urls);
+      const pdfSrc = row.local_pdf_path ? `/${row.local_pdf_path.replaceAll("\\\\", "/")}` : row.pdf_url;
+      $("detail").innerHTML = `
+        <h2>${row.title}</h2>
+        <div class="meta">${row.authors_text}</div>
+        <div class="meta">${row.volume || ""} ${row.pages || ""}</div>
+        <div class="toolbar">
+          <a class="button" href="${row.pdf_url}" target="_blank">远程 PDF</a>
+          ${row.local_pdf_path ? `<a class="button" href="${pdfSrc}" target="_blank">本地 PDF</a>` : ""}
+          ${row.info_url ? `<a class="button" href="${row.info_url}" target="_blank">原始详情页</a>` : ""}
+          ${row.doi_url ? `<a class="button" href="${row.doi_url}" target="_blank">DOI</a>` : ""}
+          ${codeUrls.map(u => `<a class="button" href="${u}" target="_blank">Code</a>`).join("")}
+          ${datasetUrls.map(u => `<a class="button" href="${u}" target="_blank">Dataset</a>`).join("")}
+        </div>
+        <div class="section">
+          <h3>摘要</h3>
+          <div class="bilingual">
+            ${row.abstract_zh ? `<div class="translation"><h4>中文摘要</h4><p>${row.abstract_zh}</p></div>` : ""}
+            <div class="translation"><h4>English Abstract</h4><p>${row.abstract || "No abstract"}</p></div>
+          </div>
+        </div>
+        <div class="section"><h3>分类</h3><div class="chips">${categories.map(c => `<span class="chip">${c}</span>`).join("")}</div></div>
+        <div class="section"><h3>PDF 查看</h3><iframe src="${pdfSrc}"></iframe></div>
+        ${row.meta_review ? `
+          <div class="section">
+            <h3>Meta-Review</h3>
+            <div class="bilingual">
+              ${row.meta_review_zh ? `<div class="translation"><h4>中文评审意见</h4><p>${row.meta_review_zh}</p></div>` : ""}
+              <div class="translation"><h4>English Meta-Review</h4><p>${row.meta_review}</p></div>
+            </div>
+          </div>
+        ` : ""}
+      `;
+    }
+
+    async function renderStats() {
+      const data = await api("/api/stats");
+      const maxCat = Math.max(...data.topCategories.map(d => d.count), 1);
+      const maxWord = Math.max(...data.topWords.map(d => d.count), 1);
+      $("stats").innerHTML = `
+        <div class="grid">
+          <div class="card"><h3>论文总数</h3><h1>${data.totals.papers}</h1></div>
+          <div class="card"><h3>已下载 PDF</h3><h1>${data.totals.downloaded || 0}</h1></div>
+          <div class="card"><h3>LNCS 卷数</h3><h1>${data.byVolume.length}</h1></div>
+        </div>
+        <div class="grid" style="margin-top:12px">
+          <div class="card"><h3>Top 分类</h3>${data.topCategories.map(d => `<p>${d.name} <b>${d.count}</b></p><div class="bar"><span style="width:${d.count / maxCat * 100}%"></span></div>`).join("")}</div>
+          <div class="card"><h3>标题高频词</h3>${data.topWords.map(d => `<p>${d.word} <b>${d.count}</b></p><div class="bar"><span style="width:${d.count / maxWord * 100}%"></span></div>`).join("")}</div>
+          <div class="card"><h3>按卷统计</h3>${data.byVolume.map(d => `<p>${d.volume} <b>${d.count}</b></p>`).join("")}</div>
+        </div>
+      `;
+    }
+
+    $("query").addEventListener("input", () => { clearTimeout(window.searchTimer); window.searchTimer = setTimeout(() => search(true), 250); });
+    $("category").addEventListener("change", () => search(true));
+    $("volume").addEventListener("change", () => search(true));
+    $("pageSize").addEventListener("change", () => {
+      state.pageSize = Number($("pageSize").value);
+      search(true);
+    });
+    $("prevPage").addEventListener("click", () => gotoPage(-1));
+    $("nextPage").addEventListener("click", () => gotoPage(1));
+    $("browseTab").onclick = () => {
+      $("browseTab").classList.add("active"); $("statsTab").classList.remove("active");
+      $("browser").classList.remove("hidden"); $("stats").classList.remove("visible");
+    };
+    $("statsTab").onclick = async () => {
+      $("statsTab").classList.add("active"); $("browseTab").classList.remove("active");
+      $("browser").classList.add("hidden"); $("stats").classList.add("visible");
+      await renderStats();
+    };
+
+    loadFacets().then(search).catch(error => { $("status").textContent = error.message; });
+  </script>
+</body>
+</html>
