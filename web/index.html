@@ -121,7 +121,35 @@
     .paper h2 { font-size: 15px; margin: 0 0 8px; line-height: 1.35; }
     .meta { font-size: 12px; color: var(--muted); line-height: 1.45; }
     .abstract { margin-top: 8px; font-size: 13px; line-height: 1.5; color: #344054; }
-    .detail { overflow: auto; padding: 16px 18px; }
+    mark { background: #fef08a; color: inherit; padding: 0 2px; border-radius: 2px; }
+    .detail { overflow: hidden; display: flex; flex-direction: column; }
+    .detail-header { flex-shrink: 0; padding: 16px 18px 0; overflow: auto; }
+    .detail-tabs {
+      display: flex;
+      gap: 4px;
+      margin: 10px 0 0;
+      border-bottom: 2px solid var(--line);
+    }
+    .detail-tabs button {
+      padding: 6px 16px;
+      border: none;
+      border-bottom: 2px solid transparent;
+      border-radius: 6px 6px 0 0;
+      background: transparent;
+      font-size: 14px;
+      min-height: auto;
+      margin-bottom: -2px;
+      color: var(--muted);
+    }
+    .detail-tabs button.active {
+      border-bottom-color: var(--accent);
+      color: var(--accent);
+      font-weight: 600;
+      background: var(--soft);
+    }
+    .detail-tabs button:hover:not(.active) { color: var(--ink); }
+    .detail-body { flex: 1; overflow: auto; padding: 12px 18px 18px; }
+    .detail-body.hidden { display: none; }
     .detail h2 { font-size: 21px; margin: 0 0 8px; line-height: 1.25; }
     .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
     a.button {
@@ -157,7 +185,8 @@
     }
     .chips { display: flex; flex-wrap: wrap; gap: 6px; }
     .chip { border: 1px solid var(--line); border-radius: 999px; padding: 4px 8px; font-size: 12px; background: #fff; }
-    iframe { width: 100%; height: 72vh; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+    .pdf-panel { height: 100%; }
+    .pdf-panel iframe { width: 100%; height: 100%; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
     .stats { display: none; grid-column: 1 / -1; overflow: auto; padding: 18px 24px; }
     .stats.visible { display: block; }
     .browser.hidden { display: none; }
@@ -188,7 +217,7 @@
   <main id="browser" class="browser">
     <aside>
       <div class="filters">
-        <input id="query" placeholder="搜索标题、作者、摘要、分类">
+        <input id="query" placeholder="搜索关键词（空格分隔多个关键词）">
         <select id="category"><option value="">全部分类</option></select>
         <select id="volume"><option value="">全部卷</option></select>
       </div>
@@ -282,15 +311,31 @@
       search(false);
     }
 
+    function highlightText(text, keywords) {
+      if (!text || !keywords.length) return clip(text, 260);
+      const escaped = keywords.map(kw => kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+      const pattern = new RegExp('(' + escaped.join('|') + ')', 'gi');
+      return clip(text, 260).replace(pattern, '<mark>$1</mark>');
+    }
+
+    function getKeywords() {
+      const q = $("query").value.trim();
+      return q ? q.split(/\s+/).filter(k => k) : [];
+    }
+
     function renderResults() {
-      $("results").innerHTML = state.rows.map(row => `
+      const keywords = getKeywords();
+      $("results").innerHTML = state.rows.map(row => {
+        const titleHtml = highlightText(row.ordinal + '. ' + row.title, keywords);
+        return `
         <article class="paper ${state.selected === row.paper_id ? "active" : ""}" onclick="selectPaper('${row.paper_id}')">
-          <h2>${row.ordinal}. ${row.title}</h2>
+          <h2>${titleHtml}</h2>
           <div class="meta">${row.authors_text}</div>
           <div class="meta">${row.volume || ""} ${row.pages || ""} ${row.downloaded ? " | PDF 已下载" : ""}</div>
-          <div class="abstract">${clip(row.abstract_zh || row.abstract, 260)}</div>
+          <div class="abstract">${highlightText(row.abstract_zh || row.abstract, keywords)}</div>
         </article>
-      `).join("");
+      `;
+      }).join("");
     }
 
     async function selectPaper(paperId) {
@@ -301,36 +346,51 @@
       const codeUrls = parseJson(row.code_urls);
       const datasetUrls = parseJson(row.dataset_urls);
       const pdfSrc = row.local_pdf_path ? `/${row.local_pdf_path.replaceAll("\\\\", "/")}` : row.pdf_url;
+      const keywords = getKeywords();
+      function hl(text) {
+        if (!text || !keywords.length) return text || 'No abstract';
+        const escaped = keywords.map(kw => kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+        const pattern = new RegExp('(' + escaped.join('|') + ')', 'gi');
+        return text.replace(pattern, '<mark>$1</mark>');
+      }
       $("detail").innerHTML = `
-        <h2>${row.title}</h2>
-        <div class="meta">${row.authors_text}</div>
-        <div class="meta">${row.volume || ""} ${row.pages || ""}</div>
-        <div class="toolbar">
-          <a class="button" href="${row.pdf_url}" target="_blank">远程 PDF</a>
-          ${row.local_pdf_path ? `<a class="button" href="${pdfSrc}" target="_blank">本地 PDF</a>` : ""}
-          ${row.info_url ? `<a class="button" href="${row.info_url}" target="_blank">原始详情页</a>` : ""}
-          ${row.doi_url ? `<a class="button" href="${row.doi_url}" target="_blank">DOI</a>` : ""}
-          ${codeUrls.map(u => `<a class="button" href="${u}" target="_blank">Code</a>`).join("")}
-          ${datasetUrls.map(u => `<a class="button" href="${u}" target="_blank">Dataset</a>`).join("")}
-        </div>
-        <div class="section">
-          <h3>摘要</h3>
-          <div class="bilingual">
-            ${row.abstract_zh ? `<div class="translation"><h4>中文摘要</h4><p>${row.abstract_zh}</p></div>` : ""}
-            <div class="translation"><h4>English Abstract</h4><p>${row.abstract || "No abstract"}</p></div>
+        <div class="detail-header">
+          <h2>${hl(row.title)}</h2>
+          <div class="meta">${row.authors_text}</div>
+          <div class="meta">${row.volume || ""} ${row.pages || ""}</div>
+          <div class="toolbar">
+            <a class="button" href="${row.pdf_url}" target="_blank">远程 PDF</a>
+            ${row.local_pdf_path ? `<a class="button" href="${pdfSrc}" target="_blank">本地 PDF</a>` : ""}
+            ${row.info_url ? `<a class="button" href="${row.info_url}" target="_blank">原始详情页</a>` : ""}
+            ${row.doi_url ? `<a class="button" href="${row.doi_url}" target="_blank">DOI</a>` : ""}
+            ${codeUrls.map(u => `<a class="button" href="${u}" target="_blank">Code</a>`).join("")}
+            ${datasetUrls.map(u => `<a class="button" href="${u}" target="_blank">Dataset</a>`).join("")}
+          </div>
+          <div class="detail-tabs">
+            <button class="active" onclick="switchDetailTab('abstract')">📝 摘要与评审</button>
+            <button onclick="switchDetailTab('pdf')">📄 PDF 论文</button>
           </div>
         </div>
-        <div class="section"><h3>分类</h3><div class="chips">${categories.map(c => `<span class="chip">${c}</span>`).join("")}</div></div>
-        <div class="section"><h3>PDF 查看</h3><iframe src="${pdfSrc}"></iframe></div>
-        ${row.meta_review ? `
+        <div id="detailAbstract" class="detail-body">
           <div class="section">
-            <h3>Meta-Review</h3>
+            <h3>摘要</h3>
             <div class="bilingual">
-              ${row.meta_review_zh ? `<div class="translation"><h4>中文评审意见</h4><p>${row.meta_review_zh}</p></div>` : ""}
-              <div class="translation"><h4>English Meta-Review</h4><p>${row.meta_review}</p></div>
+              ${row.abstract_zh ? `<div class="translation"><h4>中文摘要</h4><p>${hl(row.abstract_zh)}</p></div>` : ""}
+              <div class="translation"><h4>English Abstract</h4><p>${hl(row.abstract)}</p></div>
             </div>
           </div>
-        ` : ""}
+          <div class="section"><h3>分类</h3><div class="chips">${categories.map(c => `<span class="chip">${c}</span>`).join("")}</div></div>
+          ${row.meta_review ? `
+            <div class="section">
+              <h3>Meta-Review</h3>
+              <div class="bilingual">
+                ${row.meta_review_zh ? `<div class="translation"><h4>中文评审意见</h4><p>${row.meta_review_zh}</p></div>` : ""}
+                <div class="translation"><h4>English Meta-Review</h4><p>${row.meta_review}</p></div>
+              </div>
+            </div>
+          ` : ""}
+        </div>
+        <div id="detailPdf" class="detail-body hidden pdf-panel"><iframe src="${pdfSrc}"></iframe></div>
       `;
     }
 
@@ -361,6 +421,16 @@
     });
     $("prevPage").addEventListener("click", () => gotoPage(-1));
     $("nextPage").addEventListener("click", () => gotoPage(1));
+    function switchDetailTab(tab) {
+      const tabs = document.querySelectorAll('.detail-tabs button');
+      tabs.forEach(t => t.classList.remove('active'));
+      tabs.forEach(t => { if ((tab === 'abstract' && t.textContent.includes('摘要')) || (tab === 'pdf' && t.textContent.includes('PDF'))) t.classList.add('active'); });
+      const absPanel = $("detailAbstract");
+      const pdfPanel = $("detailPdf");
+      if (tab === 'abstract') { absPanel.classList.remove('hidden'); pdfPanel.classList.add('hidden'); }
+      else { absPanel.classList.add('hidden'); pdfPanel.classList.remove('hidden'); }
+    }
+
     $("browseTab").onclick = () => {
       $("browseTab").classList.add("active"); $("statsTab").classList.remove("active");
       $("browser").classList.remove("hidden"); $("stats").classList.remove("visible");

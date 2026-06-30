@@ -9,6 +9,7 @@ import sqlite3
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
+import re
 
 
 ROOT = Path(__file__).resolve().parent
@@ -76,14 +77,18 @@ class Handler(BaseHTTPRequestHandler):
                 clauses: list[str] = []
                 params: list[object] = []
                 if q:
-                    clauses.append(
-                        "("
-                        "title LIKE ? OR authors_text LIKE ? OR abstract LIKE ? OR abstract_zh LIKE ? "
-                        "OR meta_review LIKE ? OR meta_review_zh LIKE ? OR reviews_text LIKE ? OR categories LIKE ?"
-                        ")"
-                    )
-                    like = f"%{q}%"
-                    params.extend([like, like, like, like, like, like, like, like])
+                    keywords = [kw.strip() for kw in q.split() if kw.strip()]
+                    if keywords:
+                        kw_clauses = []
+                        for kw in keywords:
+                            sub = (
+                                "(title LIKE ? OR authors_text LIKE ? OR abstract LIKE ? OR abstract_zh LIKE ? "
+                                "OR meta_review LIKE ? OR meta_review_zh LIKE ? OR reviews_text LIKE ? OR categories LIKE ?)"
+                            )
+                            like = f"%{kw}%"
+                            kw_clauses.append(sub)
+                            params.extend([like, like, like, like, like, like, like, like])
+                        clauses.append("(" + " AND ".join(kw_clauses) + ")")
                 if category:
                     clauses.append("categories LIKE ?")
                     params.append(f"%{category}%")
